@@ -1,0 +1,5 @@
+module github.com/LazarenkoA/post-shift-client
+
+go 1.14
+
+require golang.org/x/net v0.0.0-20200822124328-c89045814202

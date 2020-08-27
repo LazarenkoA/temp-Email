@@ -70,6 +70,7 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 			go t.watcherMail()
 		} else {
 			close(t.conf.Result)
+			t.clearEmail()
 		}
 	}
 
@@ -93,6 +94,7 @@ FOR:
 				Error: errors.New("Прервано по таймауту"),
 			}
 			close(t.conf.Result)
+			t.clearEmail()
 			break FOR
 		case <-tick.C:
 		default:
@@ -180,6 +182,11 @@ func (t *TmpEmail) readEmail(from string, id int) {
 				Confirm: true,
 			}
 			close(t.conf.Result)
+			t.clearEmail()
 		}
 	}
+}
+
+func (t *TmpEmail) clearEmail() {
+	t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=clear&key=%v", t.key))
 }

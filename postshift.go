@@ -13,8 +13,14 @@ import (
 	"time"
 )
 
+type Result struct {
+	Email   string
+	Confirm bool
+	Error error
+}
+
 type TmpEmailConf struct {
-	Result     chan string
+	Result     chan *Result
 	Timeout    time.Duration
 	Activation func(from, body string) bool
 	Proxy *struct{
@@ -51,14 +57,17 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 		t.email = tmp["email"].(string)
 		t.key = tmp["key"].(string)
 
+		t.conf.Result <- &Result{
+			Email:   t.email,
+			Confirm: false,
+		}
+
 		// запускаем горутину что б она проверяла входящие письма
 		if confirm {
 			if t.conf.Activation == nil {
 				return errors.New("Должна быть задана функция активации")
 			}
 			go t.watcherMail()
-		} else {
-			t.conf.Result <- t.email
 		}
 	}
 
@@ -78,7 +87,10 @@ FOR:
 
 		select {
 		case <-ctx.Done():
-			t.conf.Result <- "Прервано по таймауту"
+			t.conf.Result <-  &Result{
+				Error: errors.New("Прервано по таймауту"),
+			}
+
 			break FOR
 		case <-tick.C:
 		default:
@@ -161,7 +173,10 @@ func (t *TmpEmail) getResponse(url string) ([]byte, error) {
 func (t *TmpEmail) readEmail(from string, id int) {
 	if body, err := t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=getmail&key=%v&id=%d", t.key, id)); err == nil {
 		if t.conf.Activation(from, string(body)) {
-			t.conf.Result <- t.email
+			t.conf.Result <- &Result{
+				Email:   t.email,
+				Confirm: true,
+			}
 		}
 	}
 }

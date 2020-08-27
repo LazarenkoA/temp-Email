@@ -68,6 +68,8 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 				return errors.New("Должна быть задана функция активации")
 			}
 			go t.watcherMail()
+		} else {
+			close(t.conf.Result)
 		}
 	}
 
@@ -90,7 +92,7 @@ FOR:
 			t.conf.Result <-  &Result{
 				Error: errors.New("Прервано по таймауту"),
 			}
-
+			close(t.conf.Result)
 			break FOR
 		case <-tick.C:
 		default:
@@ -177,6 +179,7 @@ func (t *TmpEmail) readEmail(from string, id int) {
 				Email:   t.email,
 				Confirm: true,
 			}
+			close(t.conf.Result)
 		}
 	}
 }

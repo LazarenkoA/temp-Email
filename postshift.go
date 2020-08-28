@@ -87,22 +87,30 @@ func (t *TmpEmail) watcherMail() {
 
 	checked := map[int]bool{}
 
-FOR:
-	for {
+//FOR:
+	for range tick.C {
 		t.readInBox(checked)
 
-		select {
-		case <-t.ctx.Done():
+		if _, ok := t.ctx.Deadline(); ok {
 			t.conf.Result <-  &Result{
 				Error: errors.New("Прервано по таймауту"),
 			}
 			close(t.conf.Result)
 			t.clearEmail()
-			break FOR
-		case <-tick.C:
-		default:
-
 		}
+
+		//select {
+		//case _, ok := t.ctx.Deadline(); ok:
+		//	t.conf.Result <-  &Result{
+		//		Error: errors.New("Прервано по таймауту"),
+		//	}
+		//	close(t.conf.Result)
+		//	t.clearEmail()
+		//	break FOR
+		//case <-tick.C:
+		//default:
+		//
+		//}
 	}
 }
 

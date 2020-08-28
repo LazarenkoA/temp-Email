@@ -10,7 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"time"  
+	"time"
 )
 
 type Result struct {
@@ -69,7 +69,7 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 			if t.conf.Activation == nil {
 				return errors.New("Должна быть задана функция активации")
 			}
-			t.ctx, t.cancel = context.WithDeadline(context.Background(), time.Now().Add(t.conf.Timeout))
+			t.ctx, t.cancel = context.WithTimeout(context.Background(), t.conf.Timeout)
 
 			go t.watcherMail()
 		} else {
@@ -87,30 +87,24 @@ func (t *TmpEmail) watcherMail() {
 
 	checked := map[int]bool{}
 
-//FOR:
-	for range tick.C {
+FOR:
+	for {
 		t.readInBox(checked)
 
-		if _, ok := t.ctx.Deadline(); ok {
-			t.conf.Result <-  &Result{
+		if errors.Is(t.ctx.Err(), context.DeadlineExceeded) {
+			t.conf.Result <- &Result{
 				Error: errors.New("Прервано по таймауту"),
 			}
 			close(t.conf.Result)
 			t.clearEmail()
+			break
 		}
 
-		//select {
-		//case _, ok := t.ctx.Deadline(); ok:
-		//	t.conf.Result <-  &Result{
-		//		Error: errors.New("Прервано по таймауту"),
-		//	}
-		//	close(t.conf.Result)
-		//	t.clearEmail()
-		//	break FOR
-		//case <-tick.C:
-		//default:
-		//
-		//}
+		select {
+		case <-t.ctx.Done():
+			break FOR
+		case <-tick.C:
+		}
 	}
 }
 

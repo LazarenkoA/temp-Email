@@ -33,6 +33,8 @@ type TmpEmail struct {
 	email string
 	key   string
 	conf  *TmpEmailConf
+	ctx context.Context
+	cancel func()
 }
 
 func (t *TmpEmail) Create(conf *TmpEmailConf) *TmpEmail {
@@ -67,6 +69,8 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 			if t.conf.Activation == nil {
 				return errors.New("Должна быть задана функция активации")
 			}
+			t.ctx, t.cancel = context.WithDeadline(context.Background(), time.Now().Add(t.conf.Timeout))
+
 			go t.watcherMail()
 		} else {
 			close(t.conf.Result)
@@ -78,7 +82,6 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 }
 
 func (t *TmpEmail) watcherMail() {
-	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(t.conf.Timeout))
 	tick := time.NewTicker(time.Second * 2)
 	defer tick.Stop()
 
@@ -89,7 +92,7 @@ FOR:
 		t.readInBox(checked)
 
 		select {
-		case <-ctx.Done():
+		case <-t.ctx.Done():
 			t.conf.Result <-  &Result{
 				Error: errors.New("Прервано по таймауту"),
 			}
@@ -182,11 +185,13 @@ func (t *TmpEmail) readEmail(from string, id int) {
 				Confirm: true,
 			}
 			close(t.conf.Result)
+			t.cancel()
 			t.clearEmail()
 		}
 	}
 }
 
 func (t *TmpEmail) clearEmail() {
+	// очистить все с ip https://post-shift.ru/api.php?action=deleteall
 	t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=clear&key=%v", t.key))
 }

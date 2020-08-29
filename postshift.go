@@ -92,10 +92,12 @@ FOR:
 		t.readInBox(checked)
 
 		if errors.Is(t.ctx.Err(), context.DeadlineExceeded) {
+			t.clearEmail()
+
 			t.conf.Result <- &Result{
 				Error: errors.New("Прервано по таймауту"),
 			}
-			t.clearEmail()
+
 			close(t.conf.Result)
 			break
 		}
@@ -182,11 +184,12 @@ func (t *TmpEmail) getResponse(url string) ([]byte, error) {
 func (t *TmpEmail) readEmail(from string, id int) {
 	if body, err := t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=getmail&key=%v&id=%d", t.key, id)); err == nil {
 		if t.conf.Activation(from, string(body)) {
+			t.clearEmail()
+
 			t.conf.Result <- &Result{
 				Email:   t.email,
 				Confirm: true,
 			}
-			t.clearEmail()
 			close(t.conf.Result)
 			t.cancel()
 		}

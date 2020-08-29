@@ -194,6 +194,9 @@ func (t *TmpEmail) readEmail(from string, id int) {
 }
 
 func (t *TmpEmail) clearEmail() {
-	// очистить все с ip https://post-shift.ru/api.php?action=deleteall
 	t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=clear&key=%v", t.key))
+}
+
+func (t *TmpEmail) ClearAllEmail() {
+	t.getResponse("https://post-shift.ru/api.php?action=deleteall")
 }

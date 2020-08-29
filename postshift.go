@@ -73,8 +73,8 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 
 			go t.watcherMail()
 		} else {
-			close(t.conf.Result)
 			t.clearEmail()
+			close(t.conf.Result)
 		}
 	}
 
@@ -95,8 +95,8 @@ FOR:
 			t.conf.Result <- &Result{
 				Error: errors.New("Прервано по таймауту"),
 			}
-			close(t.conf.Result)
 			t.clearEmail()
+			close(t.conf.Result)
 			break
 		}
 
@@ -186,9 +186,9 @@ func (t *TmpEmail) readEmail(from string, id int) {
 				Email:   t.email,
 				Confirm: true,
 			}
+			t.clearEmail()
 			close(t.conf.Result)
 			t.cancel()
-			t.clearEmail()
 		}
 	}
 }

@@ -42,7 +42,7 @@ func (t *TmpEmail) Create(conf *TmpEmailConf) *TmpEmail {
 	return t
 }
 
-func (t *TmpEmail) NewRegistration(confirm bool) error {
+func (t *TmpEmail) NewRegistration(confirm bool, workerid int) error {
 	if body, err := t.getResponse("https://post-shift.ru/api.php?action=new&type=json"); err != nil {
 		log.Printf("Регистрация нового email. Ошибка:\n %q \n", err.Error())
 		return err
@@ -87,9 +87,17 @@ func (t *TmpEmail) watcherMail() {
 
 	checked := map[int]bool{}
 
-FOR:
-	for {
-		t.readInBox(checked)
+	//FOR:
+	for range tick.C {
+		if t.readInBox(checked) {
+			t.deleteEmail()
+			t.conf.Result <- &Result{
+				Email:   t.email,
+				Confirm: true,
+			}
+			close(t.conf.Result)
+			break
+		}
 
 		if errors.Is(t.ctx.Err(), context.DeadlineExceeded) {
 			t.deleteEmail()
@@ -102,27 +110,26 @@ FOR:
 			break
 		}
 
-		select {
-		case <-t.ctx.Done():
-			break FOR
-		case <-tick.C:
-		}
+		//select {
+		//case <-t.ctx.Done():
+		//	break FOR
+		//case <-tick.C:
+		//}
 	}
 }
 
-func (t *TmpEmail) readInBox(checked map[int]bool) (result string) {
+func (t *TmpEmail) readInBox(checked map[int]bool) (result bool) {
 	// EAFP
 	defer func() {
 		if err := recover(); err != nil {
-			result = ""
+			result = false
 		}
 	}()
 
 	if body, err := t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=getlist&key=%v&type=json", t.key)); err == nil {
 		tmp := []map[string]interface{}{}
 		if err := json.Unmarshal(body, &tmp); err != nil {
-			//log.Printf("Получение списка писем. Ошибка сериализации json: %q \n", err.Error())
-			return ""
+			return false
 		}
 
 		for _, body := range tmp {
@@ -130,18 +137,17 @@ func (t *TmpEmail) readInBox(checked map[int]bool) (result string) {
 				id := int(body["id"].(float64))
 				if !checked[id] {
 					checked[id] = true
-					t.readEmail(from.(string), id)
+					return t.readEmail(from.(string), id)
 				}
 			}
 		}
 	}
-	return ""
+	return false
 }
 
 func (t *TmpEmail) httpClient(timeout time.Duration) *http.Client {
 	httpTransport := &http.Transport{}
 	if t.conf.Proxy != nil {
-		//logrus.Debug("Используем прокси " + net_.PROXY_ADDR)
 		httpTransport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			select {
 			case <-ctx.Done():
@@ -181,19 +187,11 @@ func (t *TmpEmail) getResponse(url string) ([]byte, error) {
 	}
 }
 
-func (t *TmpEmail) readEmail(from string, id int) {
+func (t *TmpEmail) readEmail(from string, id int) bool {
 	if body, err := t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=getmail&key=%v&id=%d", t.key, id)); err == nil {
-		if t.conf.Activation(from, string(body)) {
-			t.deleteEmail()
-
-			t.conf.Result <- &Result{
-				Email:   t.email,
-				Confirm: true,
-			}
-			close(t.conf.Result)
-			t.cancel()
-		}
+		return t.conf.Activation(from, string(body))
 	}
+	return false
 }
 
 func (t *TmpEmail) deleteEmail() {

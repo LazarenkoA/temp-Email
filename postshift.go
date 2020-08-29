@@ -167,7 +167,7 @@ func (t *TmpEmail) httpClient(timeout time.Duration) *http.Client {
 
 func (t *TmpEmail) getResponse(url string) ([]byte, error) {
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	client := t.httpClient(time.Minute * 2)
+	client := t.httpClient(time.Second*30)
 
 	if resp, err := client.Do(req); err != nil {
 		return []byte{}, fmt.Errorf("Регистрация нового email. Произошла ошибка при выполнении запроса:\n%q \n", err.Error())

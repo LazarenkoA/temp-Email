@@ -73,7 +73,7 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 
 			go t.watcherMail()
 		} else {
-			t.clearEmail()
+			t.deleteEmail()
 			close(t.conf.Result)
 		}
 	}
@@ -92,7 +92,7 @@ FOR:
 		t.readInBox(checked)
 
 		if errors.Is(t.ctx.Err(), context.DeadlineExceeded) {
-			t.clearEmail()
+			t.deleteEmail()
 
 			t.conf.Result <- &Result{
 				Error: errors.New("Прервано по таймауту"),
@@ -184,7 +184,7 @@ func (t *TmpEmail) getResponse(url string) ([]byte, error) {
 func (t *TmpEmail) readEmail(from string, id int) {
 	if body, err := t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=getmail&key=%v&id=%d", t.key, id)); err == nil {
 		if t.conf.Activation(from, string(body)) {
-			t.clearEmail()
+			t.deleteEmail()
 
 			t.conf.Result <- &Result{
 				Email:   t.email,
@@ -196,10 +196,10 @@ func (t *TmpEmail) readEmail(from string, id int) {
 	}
 }
 
-func (t *TmpEmail) clearEmail() {
-	t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=clear&key=%v", t.key))
+func (t *TmpEmail) deleteEmail() {
+	t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=delete&key=%v", t.key))
 }
 
-func (t *TmpEmail) ClearAllEmail() {
+func (t *TmpEmail) DeleteAllEmail() {
 	t.getResponse("https://post-shift.ru/api.php?action=deleteall")
 }

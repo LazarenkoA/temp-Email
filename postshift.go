@@ -20,9 +20,13 @@ type Result struct {
 }
 
 type TmpEmailConf struct {
+	// канал для результата
 	Result     chan *Result
+	// Таймаут в течении которого будет ожидаться письмо с подтверждением
 	Timeout    time.Duration
+	// функция для обработки входящих сообщений
 	Activation func(from, body string) bool
+	// Прокси
 	Proxy *struct{
 		address string
 		port string
@@ -42,6 +46,8 @@ func (t *TmpEmail) Create(conf *TmpEmailConf) *TmpEmail {
 	return t
 }
 
+// Регистрация новой почты
+// если параметр confirm = true должна быть задана функция Activation
 func (t *TmpEmail) NewRegistration(confirm bool) error {
 	if body, err := t.getResponse("https://post-shift.ru/api.php?action=new&type=json"); err != nil {
 		log.Printf("Регистрация нового email. Ошибка:\n %q \n", err.Error())

@@ -42,7 +42,7 @@ func (t *TmpEmail) Create(conf *TmpEmailConf) *TmpEmail {
 	return t
 }
 
-func (t *TmpEmail) NewRegistration(confirm bool, workerid int) error {
+func (t *TmpEmail) NewRegistration(confirm bool) error {
 	if body, err := t.getResponse("https://post-shift.ru/api.php?action=new&type=json"); err != nil {
 		log.Printf("Регистрация нового email. Ошибка:\n %q \n", err.Error())
 		return err

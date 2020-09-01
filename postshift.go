@@ -16,20 +16,20 @@ import (
 type Result struct {
 	Email   string
 	Confirm bool
-	Error error
+	Error   error
 }
 
 type TmpEmailConf struct {
 	// канал для результата
-	Result     chan *Result
+	Result chan *Result
 	// Таймаут в течении которого будет ожидаться письмо с подтверждением
-	Timeout    time.Duration
+	Timeout time.Duration
 	// функция для обработки входящих сообщений
 	Activation func(from, body string) bool
 	// Прокси
-	Proxy *struct{
+	Proxy *struct {
 		address string
-		port string
+		port    string
 	}
 }
 
@@ -37,8 +37,6 @@ type TmpEmail struct {
 	email string
 	key   string
 	conf  *TmpEmailConf
-	ctx context.Context
-	cancel func()
 }
 
 func (t *TmpEmail) Create(conf *TmpEmailConf) *TmpEmail {
@@ -75,7 +73,6 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 			if t.conf.Activation == nil {
 				return errors.New("Должна быть задана функция активации")
 			}
-			t.ctx, t.cancel = context.WithTimeout(context.Background(), t.conf.Timeout)
 
 			go t.watcherMail()
 		} else {
@@ -93,7 +90,7 @@ func (t *TmpEmail) watcherMail() {
 
 	checked := map[int]bool{}
 
-	//FOR:
+FOR:
 	for range tick.C {
 		if t.readInBox(checked) {
 			t.deleteEmail()
@@ -105,7 +102,8 @@ func (t *TmpEmail) watcherMail() {
 			break
 		}
 
-		if errors.Is(t.ctx.Err(), context.DeadlineExceeded) {
+		select {
+		case <-time.After(t.conf.Timeout):
 			t.deleteEmail()
 
 			t.conf.Result <- &Result{
@@ -113,14 +111,9 @@ func (t *TmpEmail) watcherMail() {
 			}
 
 			close(t.conf.Result)
-			break
+			break FOR
+		case <-tick.C:
 		}
-
-		//select {
-		//case <-t.ctx.Done():
-		//	break FOR
-		//case <-tick.C:
-		//}
 	}
 }
 
@@ -172,14 +165,14 @@ func (t *TmpEmail) httpClient(timeout time.Duration) *http.Client {
 	}
 
 	return &http.Client{
-		Timeout: timeout,
+		Timeout:   timeout,
 		Transport: httpTransport,
 	}
 }
 
 func (t *TmpEmail) getResponse(url string) ([]byte, error) {
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	client := t.httpClient(time.Second*30)
+	client := t.httpClient(time.Second * 30)
 
 	if resp, err := client.Do(req); err != nil {
 		return []byte{}, fmt.Errorf("Регистрация нового email. Произошла ошибка при выполнении запроса:\n%q \n", err.Error())

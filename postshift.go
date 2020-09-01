@@ -37,6 +37,7 @@ type TmpEmail struct {
 	email string
 	key   string
 	conf  *TmpEmailConf
+	ctx   context.Context
 }
 
 func (t *TmpEmail) Create(conf *TmpEmailConf) *TmpEmail {
@@ -73,6 +74,7 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 			if t.conf.Activation == nil {
 				return errors.New("Должна быть задана функция активации")
 			}
+			t.ctx, _ = context.WithTimeout(context.Background(), t.conf.Timeout)
 
 			go t.watcherMail()
 		} else {
@@ -90,7 +92,7 @@ func (t *TmpEmail) watcherMail() {
 
 	checked := map[int]bool{}
 
-FOR:
+	//FOR:
 	for range tick.C {
 		if t.readInBox(checked) {
 			t.deleteEmail()
@@ -102,8 +104,7 @@ FOR:
 			break
 		}
 
-		select {
-		case <-time.After(t.conf.Timeout):
+		if errors.Is(t.ctx.Err(), context.DeadlineExceeded) {
 			t.deleteEmail()
 
 			t.conf.Result <- &Result{
@@ -111,9 +112,14 @@ FOR:
 			}
 
 			close(t.conf.Result)
-			break FOR
-		case <-tick.C:
+			break
 		}
+
+		//select {
+		//case <-t.ctx.Done():
+		//	break FOR
+		//case <-tick.C:
+		//}
 	}
 }
 

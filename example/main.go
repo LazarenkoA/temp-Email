@@ -35,9 +35,8 @@ func main() {
 	// Читаем email
 	fmt.Println((<-cResult).Email)
 
-	r := <-cResult
 	// Ожидаем подтверждения (можно в отдельной горутине)
-	if r == nil || r.Error == nil {
+	if r := <-cResult; r == nil || r.Error == nil {
 		fmt.Println("Почта подтверждена")
 	}
 

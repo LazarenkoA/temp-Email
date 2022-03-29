@@ -1,4 +1,4 @@
-package postshift
+package tmpemail
 
 import (
 	"context"
@@ -6,48 +6,27 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/net/proxy"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"time"
 )
 
-type Result struct {
-	Email   string
-	Confirm bool
-	Error   error
-}
+type PostShift struct {
+	TmpEmailConf
 
-type TmpEmailConf struct {
-	// канал для результата
-	Result chan *Result
-	// Таймаут в течении которого будет ожидаться письмо с подтверждением
-	Timeout time.Duration
-	// функция для обработки входящих сообщений
-	Activation func(from, body string) bool
-	// Прокси
-	Proxy *struct {
-		address string
-		port    string
-	}
-}
-
-type TmpEmail struct {
 	email string
 	key   string
 	conf  *TmpEmailConf
 	ctx   context.Context
 }
 
-func (t *TmpEmail) Create(conf *TmpEmailConf) *TmpEmail {
+func (t *PostShift) Create(conf *TmpEmailConf) ITmpEmail {
 	t.conf = conf
 	return t
 }
 
-// Регистрация новой почты
-// если параметр confirm = true должна быть задана функция Activation
-func (t *TmpEmail) NewRegistration(confirm bool) error {
+func (t *PostShift) NewRegistration() error {
 	if body, err := t.getResponse("https://post-shift.ru/api.php?action=new&type=json"); err != nil {
 		log.Printf("Регистрация нового email. Ошибка:\n %q \n", err.Error())
 		return err
@@ -65,28 +44,27 @@ func (t *TmpEmail) NewRegistration(confirm bool) error {
 		t.key = tmp["key"].(string)
 
 		t.conf.Result <- &Result{
-			Email:   t.email,
-			Confirm: false,
+			Email: t.email,
 		}
 
 		// запускаем горутину что б она проверяла входящие письма
-		if confirm {
-			if t.conf.Activation == nil {
-				return errors.New("Должна быть задана функция активации")
-			}
-			t.ctx, _ = context.WithTimeout(context.Background(), t.conf.Timeout)
-
-			go t.watcherMail()
-		} else {
-			t.deleteEmail()
-			close(t.conf.Result)
-		}
+		//if confirm {
+		//	if t.conf.Activation == nil {
+		//		return errors.New("Должна быть задана функция активации")
+		//	}
+		//	t.ctx, _ = context.WithTimeout(context.Background(), t.conf.Timeout)
+		//
+		//	go t.watcherMail()
+		//} else {
+		//	t.deleteEmail()
+		//	close(t.conf.Result)
+		//}
 	}
 
 	return nil
 }
 
-func (t *TmpEmail) watcherMail() {
+func (t *PostShift) watcherMail() {
 	tick := time.NewTicker(time.Second * 2)
 	defer tick.Stop()
 
@@ -97,8 +75,7 @@ func (t *TmpEmail) watcherMail() {
 		if t.readInBox(checked) {
 			t.deleteEmail()
 			t.conf.Result <- &Result{
-				Email:   t.email,
-				Confirm: true,
+				Email: t.email,
 			}
 			close(t.conf.Result)
 			break
@@ -123,7 +100,7 @@ func (t *TmpEmail) watcherMail() {
 	}
 }
 
-func (t *TmpEmail) readInBox(checked map[int]bool) (result bool) {
+func (t *PostShift) readInBox(checked map[int]bool) (result bool) {
 	// EAFP
 	defer func() {
 		if err := recover(); err != nil {
@@ -150,7 +127,7 @@ func (t *TmpEmail) readInBox(checked map[int]bool) (result bool) {
 	return false
 }
 
-func (t *TmpEmail) httpClient(timeout time.Duration) *http.Client {
+func (t *PostShift) httpClient(timeout time.Duration) *http.Client {
 	httpTransport := &http.Transport{}
 	if t.conf.Proxy != nil {
 		httpTransport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -176,33 +153,17 @@ func (t *TmpEmail) httpClient(timeout time.Duration) *http.Client {
 	}
 }
 
-func (t *TmpEmail) getResponse(url string) ([]byte, error) {
-	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	client := t.httpClient(time.Second * 30)
-
-	if resp, err := client.Do(req); err != nil {
-		return []byte{}, fmt.Errorf("Регистрация нового email. Произошла ошибка при выполнении запроса:\n%q \n", err.Error())
-	} else if resp.StatusCode-(resp.StatusCode%100) != 200 {
-		return []byte{}, fmt.Errorf("Код ответа: %d \n", resp.StatusCode)
-	} else {
-		body, _ := ioutil.ReadAll(resp.Body)
-		defer resp.Body.Close()
-
-		return body, nil
-	}
-}
-
-func (t *TmpEmail) readEmail(from string, id int) bool {
+func (t *PostShift) readEmail(from string, id int) bool {
 	if body, err := t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=getmail&key=%v&id=%d", t.key, id)); err == nil {
 		return t.conf.Activation(from, string(body))
 	}
 	return false
 }
 
-func (t *TmpEmail) deleteEmail() {
+func (t *PostShift) deleteEmail() {
 	t.getResponse(fmt.Sprintf("https://post-shift.ru/api.php?action=delete&key=%v", t.key))
 }
 
-func (t *TmpEmail) DeleteAllEmail() {
+func (t *PostShift) DeleteAllEmail() {
 	t.getResponse("https://post-shift.ru/api.php?action=deleteall")
 }

@@ -1,6 +1,6 @@
-module github.com/LazarenkoA/post-shift-client
+module github.com/LazarenkoA/temp-Email
 
-go 1.14
+go 1.18
 
 require (
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
